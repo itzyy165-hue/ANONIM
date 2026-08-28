@@ -160,13 +160,11 @@ async def stop_chat(callback: CallbackQuery):
         partner_id = user[4]
         database.set_user_status(user_id, 'idle')
         
-        # Сообщение инициатору закрытия
         await callback.message.edit_text(
             "🛑 Диалог завершен.\nНажмите «🔍 Найти собеседника», чтобы начать новый поиск.", 
             reply_markup=menu_keyboard()
         )
         
-        # Уведомление партнера с понятным призывом к действию
         if partner_id:
             database.set_user_status(partner_id, 'idle')
             try:
@@ -194,13 +192,11 @@ async def report_partner(callback: CallbackQuery):
         database.set_user_status(user_id, 'idle')
         database.set_user_status(partner_id, 'idle')
         
-        # Сообщение пожаловавшемуся
         await callback.message.edit_text(
             "🛑 Вы пожаловались на собеседника. Диалог завершен.\nНажмите «🔍 Найти собеседника», чтобы начать поиск заново.", 
             reply_markup=menu_keyboard()
         )
         
-        # Сообщение тому, на кого пожаловались
         try:
             await bot.send_message(
                 partner_id, 
@@ -220,13 +216,18 @@ async def handle_chat_messages(message: Message):
     user_id = message.from_user.id
     user = database.get_user(user_id)
     
+    print(f"DEBUG: Сообщение от {user_id}. Данные из БД: {user}")
+    
     if not user:
+        await message.answer("Пожалуйста, зарегистрируйтесь через /start")
         return
         
     if user[6] == 1:
         return
         
     status, partner_id = user[3], user[4]
+    
+    print(f"DEBUG: Статус = {status}, Партнер = {partner_id}")
     
     if status != 'chatting' or not partner_id:
         await message.answer("Вы не в чате! Нажмите кнопку ниже для поиска:", reply_markup=menu_keyboard())
@@ -240,6 +241,7 @@ async def handle_chat_messages(message: Message):
 
     try:
         await message.send_copy(chat_id=int(partner_id))
+        print(f"DEBUG: Успешно переслано от {user_id} к {partner_id}")
     except Exception as e:
         logging.error(f"Ошибка отправки сообщения партнеру {partner_id}: {e}")
         await message.answer("Не удалось доставить сообщение собеседнику.")
