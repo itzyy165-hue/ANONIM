@@ -239,7 +239,7 @@ async def main():
     await bot.delete_webhook(drop_pending_updates=True)
     
     await web_server()
-    print("ЛГБТ Чат-рулетка успешно запущена!")
+    print("Чат-рулетка успешно запущена!")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
