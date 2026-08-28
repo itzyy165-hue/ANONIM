@@ -120,7 +120,7 @@ async def process_age(message: Message, state: FSMContext):
     
     await message.answer(
         "🎉 Регистрация успешно завершена!\n"
-        "Теперь вы готовы к общению.",
+        "Нажмите кнопку ниже, чтобы начать общение:",
         reply_markup=menu_keyboard()
     )
 
@@ -159,11 +159,24 @@ async def stop_chat(callback: CallbackQuery):
     if user:
         partner_id = user[4]
         database.set_user_status(user_id, 'idle')
-        await callback.message.edit_text("🛑 Диалог завершен.", reply_markup=menu_keyboard())
         
+        # Сообщение инициатору закрытия
+        await callback.message.edit_text(
+            "🛑 Диалог завершен.\nНажмите «🔍 Найти собеседника», чтобы начать новый поиск.", 
+            reply_markup=menu_keyboard()
+        )
+        
+        # Уведомление партнера с понятным призывом к действию
         if partner_id:
             database.set_user_status(partner_id, 'idle')
-            await bot.send_message(partner_id, "🛑 Собеседник покинул чат.", reply_markup=menu_keyboard())
+            try:
+                await bot.send_message(
+                    partner_id, 
+                    "🛑 Собеседник завершил диалог.\nНажмите «🔍 Найти собеседника», чтобы начать новый поиск.", 
+                    reply_markup=menu_keyboard()
+                )
+            except Exception:
+                pass
             
     await callback.answer()
 
@@ -181,9 +194,19 @@ async def report_partner(callback: CallbackQuery):
         database.set_user_status(user_id, 'idle')
         database.set_user_status(partner_id, 'idle')
         
-        await callback.message.edit_text("🛑 Вы пожаловались на собеседника. Диалог завершен.", reply_markup=menu_keyboard())
+        # Сообщение пожаловавшемуся
+        await callback.message.edit_text(
+            "🛑 Вы пожаловались на собеседника. Диалог завершен.\nНажмите «🔍 Найти собеседника», чтобы начать поиск заново.", 
+            reply_markup=menu_keyboard()
+        )
+        
+        # Сообщение тому, на кого пожаловались
         try:
-            await bot.send_message(partner_id, "🛑 Собеседник завершил диалог.", reply_markup=menu_keyboard())
+            await bot.send_message(
+                partner_id, 
+                "🛑 Собеседник завершил диалог.\nНажмите «🔍 Найти собеседника», чтобы начать новый поиск.", 
+                reply_markup=menu_keyboard()
+            )
         except Exception:
             pass
     else:
@@ -206,7 +229,7 @@ async def handle_chat_messages(message: Message):
     status, partner_id = user[3], user[4]
     
     if status != 'chatting' or not partner_id:
-        await message.answer("Вы не в чате! Нажми «🔍 Найти собеседника».", reply_markup=menu_keyboard())
+        await message.answer("Вы не в чате! Нажмите кнопку ниже для поиска:", reply_markup=menu_keyboard())
         return
 
     text_to_check = message.text or message.caption or ""
@@ -216,8 +239,9 @@ async def handle_chat_messages(message: Message):
         return
 
     try:
-        await message.copy_to(partner_id)
-    except Exception:
+        await message.send_copy(chat_id=int(partner_id))
+    except Exception as e:
+        logging.error(f"Ошибка отправки сообщения партнеру {partner_id}: {e}")
         await message.answer("Не удалось доставить сообщение собеседнику.")
 
 async def handle_ping(request):
