@@ -1,4 +1,4 @@
-﻿import sqlite3
+import sqlite3
 
 def init_db():
     conn = sqlite3.connect("bot_chat_lgbt.db")
@@ -64,7 +64,6 @@ def find_partner(current_user_id):
     conn = sqlite3.connect("bot_chat_lgbt.db")
     cursor = conn.cursor()
     
-    # Достаем данные текущего юзера
     cursor.execute("SELECT gender, target_gender FROM users WHERE user_id = ?", (current_user_id,))
     user = cursor.fetchone()
     if not user:
@@ -73,7 +72,6 @@ def find_partner(current_user_id):
     
     my_gender, my_target = user
     
-    # Ищем пользователя со статусом 'searching', который не забанен и не сам себя
     cursor.execute("""
         SELECT user_id, gender, target_gender FROM users 
         WHERE status = 'searching' AND user_id != ? AND is_banned = 0
@@ -82,10 +80,7 @@ def find_partner(current_user_id):
     conn.close()
     
     for cand_id, cand_gender, cand_target in candidates:
-        # Проверяем взаимность интересов:
-        # 1. Наш пол подходит под критерии партнера (или партнеру все равно)
         target_match = (cand_target == 'any' or cand_target == my_gender)
-        # 2. Пол партнера подходит под наши критерии (или нам все равно)
         my_match = (my_target == 'any' or my_target == cand_gender)
         
         if target_match and my_match:
