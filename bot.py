@@ -1,4 +1,4 @@
-﻿import asyncio
+import asyncio
 import logging
 import os
 import re
@@ -19,7 +19,6 @@ dp = Dispatcher()
 class Registration(StatesGroup):
     waiting_for_age = State()
 
-# Клавиатуры
 def gender_keyboard():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="👨 Парень", callback_data="gender_male")],
@@ -44,12 +43,9 @@ def chat_keyboard():
         [InlineKeyboardButton(text="🚨 Пожаловаться", callback_data="report_partner")]
     ])
 
-
-# Функция проверки на ссылки
 def contains_link(text: str) -> bool:
     if not text:
         return False
-    # Ищем упоминания доменов, http, t.me, www и т.д.
     patterns = [
         r"https?://",
         r"t\.me/",
@@ -61,15 +57,14 @@ def contains_link(text: str) -> bool:
             return True
     return False
 
-
 @dp.message(Command("start"))
 async def cmd_start(message: Message, state: FSMContext):
     database.init_db()
     database.add_user(message.from_user.id, message.from_user.username)
     
     user = database.get_user(message.from_user.id)
-    if user and user[6] == 1: # is_banned
-        await message.answer("❌ Ваш аккаунт заблокирован за нарушение правил (размещение ссылок или жалобы).")
+    if user and user[6] == 1:
+        await message.answer("❌ Ваш аккаунт заблокирован за нарушение правил.")
         return
         
     database.set_user_status(message.from_user.id, 'setup_gender')
@@ -81,11 +76,9 @@ async def cmd_start(message: Message, state: FSMContext):
         reply_markup=gender_keyboard()
     )
 
-
 @dp.message(Command("owner"))
 async def cmd_owner(message: Message):
     await message.answer("👑 Создатель и владелец бота: <b>@GuddVes</b>", parse_mode="HTML")
-
 
 @dp.callback_query(F.data.startswith("gender_"))
 async def process_gender(callback: CallbackQuery):
@@ -99,10 +92,9 @@ async def process_gender(callback: CallbackQuery):
     )
     await callback.answer()
 
-
 @dp.callback_query(F.data.startswith("target_"))
 async def process_target(callback: CallbackQuery, state: FSMContext):
-    target = callback.data.split("_")[1] # male, female, any
+    target = callback.data.split("_")[1]
     database.update_user_field(callback.from_user.id, "target_gender", target)
     
     database.update_user_field(callback.from_user.id, "status", "setup_age")
@@ -110,7 +102,6 @@ async def process_target(callback: CallbackQuery, state: FSMContext):
     
     await callback.message.edit_text("Введите ваш возраст (цифрой):")
     await callback.answer()
-
 
 @dp.message(Registration.waiting_for_age)
 async def process_age(message: Message, state: FSMContext):
@@ -132,7 +123,6 @@ async def process_age(message: Message, state: FSMContext):
         "Теперь вы готовы к общению.",
         reply_markup=menu_keyboard()
     )
-
 
 @dp.callback_query(F.data == "search")
 async def start_search(callback: CallbackQuery):
@@ -161,7 +151,6 @@ async def start_search(callback: CallbackQuery):
         )
     await callback.answer()
 
-
 @dp.callback_query(F.data == "stop_chat")
 async def stop_chat(callback: CallbackQuery):
     user_id = callback.from_user.id
@@ -178,7 +167,6 @@ async def stop_chat(callback: CallbackQuery):
             
     await callback.answer()
 
-
 @dp.callback_query(F.data == "report_partner")
 async def report_partner(callback: CallbackQuery):
     user_id = callback.from_user.id
@@ -186,29 +174,10 @@ async def report_partner(callback: CallbackQuery):
     
     if user and user[4]:
         partner_id = user[4]
-        is_banned = database.increment_reports(partner_id)
+        database.increment_reports(partner_id)
         
         await callback.answer("🚨 Жалоба успешно отправлена администрации!", show_alert=True)
         
-        # Уведомляем владельца
-        try:
-            # Находим юзернейм нарушителя
-            conn = database.sqlite3.connect("bot_chat_lgbt.db")
-            cur = conn.cursor()
-            cur.execute("SELECT username, reports FROM users WHERE user_id = ?", (partner_id,))
-            p_data = cur.fetchone()
-            conn.close()
-            
-            p_username = f"@{p_data[0]}" if p_data[0] else f"ID: {partner_id}"
-            p_reports = p_data[1]
-            
-            # Можно заменить на твой Telegram ID, либо отправлять в консоль/админу
-            # Здесь отправим общую инфу (если знаешь свой ID, можешь вписать вместо логов)
-            logging.warning(f"ЖАЛОБА на пользователя {p_username}. Всего жалоб: {p_reports}. Забан: {is_banned}")
-        except Exception:
-            pass
-            
-        # Автоматически разрываем чат при жалобе
         database.set_user_status(user_id, 'idle')
         database.set_user_status(partner_id, 'idle')
         
@@ -220,8 +189,6 @@ async def report_partner(callback: CallbackQuery):
     else:
         await callback.answer("Вы сейчас не в диалоге.", show_alert=True)
 
-
-# Обработка переписки (текст, фото, видео, голосовые с защитой от ссылок)
 @dp.message()
 async def handle_chat_messages(message: Message):
     if message.from_user.bot:
@@ -233,7 +200,7 @@ async def handle_chat_messages(message: Message):
     if not user:
         return
         
-    if user[6] == 1: # Забанен
+    if user[6] == 1:
         return
         
     status, partner_id = user[3], user[4]
@@ -242,28 +209,23 @@ async def handle_chat_messages(message: Message):
         await message.answer("Вы не в чате! Нажми «🔍 Найти собеседника».", reply_markup=menu_keyboard())
         return
 
-    # Проверка текста на ссылки
     text_to_check = message.text or message.caption or ""
     if contains_link(text_to_check):
-        database.increment_reports(user_id) # Начисляем штраф за ссылку
-        await message.answer("❌ Ссылки запрещены! За отправку ссылок ваш доступ к общению может быть ограничен.")
+        database.increment_reports(user_id)
+        await message.answer("❌ Ссылки запрещены! За отправку ссылок доступ к общению может быть ограничен.")
         return
 
-    # Пересылаем сообщение партнеру
     try:
         await message.copy_to(partner_id)
     except Exception:
         await message.answer("Не удалось доставить сообщение собеседнику.")
 
-
-# Веб-сервер для Render
 async def handle_ping(request):
     return web.Response(text="OK", status=200)
 
 async def web_server():
     app = web.Application()
     app.router.add_get("/", handle_ping)
-    app.router.add_head("/", handle_ping)
     runner = web.AppRunner(app)
     await runner.setup()
     
@@ -271,14 +233,13 @@ async def web_server():
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
 
-
 async def main():
     logging.basicConfig(level=logging.INFO)
     database.init_db()
     await bot.delete_webhook(drop_pending_updates=True)
     
     await web_server()
-    print("Чат-рулетка успешно запущена!")
+    print("ЛГБТ Чат-рулетка успешно запущена!")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
